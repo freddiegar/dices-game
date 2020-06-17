@@ -134,6 +134,100 @@ class Turn
     }
 }
 
+class Board
+{
+    private $stations;
+
+    public function __construct(int $stations)
+    {
+        $this->stations = $stations;
+    }
+
+    private function getCells(string $color): array
+    {
+        return array_reduce(range(-5, 20), function($cells, $key): array {
+            switch ($key) {
+                case 0:
+                    $value = 'H'; // Home
+                    break;
+                case -5:
+                case 7:
+                case 12:
+                    $value = 'S'; // Safe
+                    break;
+                case 20:
+                    $value = 'F'; // Arrival
+                    break;
+                default:
+                    $value = 'C'; // Cell
+                    break;
+            }
+
+            $cells[$key] = $value;
+
+            return $cells;
+        }, []);
+    }
+
+    private function getCell(string $color, string $type, int $pos): string
+    {
+        switch ($type) {
+            case 'J':
+                $cell = '0 0  0 0';
+                break;
+            case 'H':
+                $cell = '--HOME--';
+                break;
+            case 'S':
+                $cell = '--SAFE--';
+                break;
+            case 'F':
+                $cell = '-FINISH-';
+                break;
+            case 'C':
+            default:
+                $cell = '        ';
+                break;
+        }
+
+        return sprintf('|% 2d|%s|%s|', $pos, $type, $cell);
+    }
+
+    public function stations(): int
+    {
+        return $this->stations;
+    }
+
+    public function get(): string
+    {
+        $board = '';
+        $station = [];
+        $stations = [];
+
+        for ($i = 0; $i < $this->stations; $i++) {
+            $color = chr($i + 65);
+
+            $stations[$color] = $this->getCells($color);
+        }
+
+        foreach ($stations as $color => $cells) {
+            foreach ($cells as $pos => $type) {
+                $station[$color][$pos] = $this->getCell($color, $type, $pos);
+            }
+        }
+
+        for ($j = -5; $j <= 20 ; $j++) {
+            foreach ($station as $color => $cell) {
+                $board .= str_repeat(' ', 5) . $cell[$j];
+            }
+
+            $board .= PHP_EOL;
+        }
+
+        return $board;
+    }
+}
+
 function probability(array $throws, int $total)
 {
     echo "Number \t Times \t %" . PHP_EOL;
@@ -182,6 +276,8 @@ switch ($argv[1] ?? null) {
         // Turn
         echo (new Turn())->get();
         break;
+    case 'b':
+        echo (new Board($argv[2] ?? 4))->get();
     default:
         break;
 }
