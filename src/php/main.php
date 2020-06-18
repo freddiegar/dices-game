@@ -230,10 +230,31 @@ class Board
 
 class Piece
 {
+    private $name;
+    private $color;
+    private $number;
     private $position = 0;
 
-    public function __construct()
+    public function __construct(string $color, int $number)
     {
+        $this->color = $color;
+        $this->number = $number;
+        $this->name = sprintf('%s%02d', $color, $number);
+    }
+
+    public function name(): string
+    {
+        return $this->name;
+    }
+
+    public function color(): string
+    {
+        return $this->color;
+    }
+
+    public function number(): int
+    {
+        return $this->number;
     }
 
     public function position(): int
@@ -244,6 +265,46 @@ class Piece
     public function move(int $position): void
     {
         $this->position += $position;
+    }
+}
+
+class Player
+{
+    private $name;
+    private $color;
+    private $pieces = [];
+
+    public function __construct(string $name, string $color)
+    {
+        $this->name = $name;
+        $this->color = $color;
+        $this->pieces = $this->getPieces($this->color);
+    }
+
+    private function getPieces($color)
+    {
+        $pieces = [];
+
+        for ($i = 1; $i <= 4; $i++) {
+            $pieces[$i] = new Piece($color, $i);
+        }
+
+        return $pieces;
+    }
+
+    public function name(): string
+    {
+        return $this->name;
+    }
+
+    public function color(): string
+    {
+        return $this->color;
+    }
+
+    public function pieces(): array
+    {
+        return $this->pieces;
     }
 }
 
@@ -299,12 +360,19 @@ switch ($argv[1] ?? null) {
         echo (new Board($argv[2] ?? 4))->get();
         break;
     case 'i':
-        $piece = new Piece();
+        $piece = new Piece('A', 1);
+        echo $piece->name() .  PHP_EOL;
         echo $piece->position() .  PHP_EOL;
         $piece->move(5) .  PHP_EOL;
         echo $piece->position() .  PHP_EOL;
         $piece->move(2) .  PHP_EOL;
         echo $piece->position() .  PHP_EOL;
+        break;
+    case 'l':
+        $player = new Player('Freddie', 'A');
+        echo $player->name() . PHP_EOL;
+        echo $player->color() . PHP_EOL;
+        var_dump($player->pieces()) . PHP_EOL;
         break;
     default:
         break;
