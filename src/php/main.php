@@ -169,7 +169,7 @@ class Board
         }, []);
     }
 
-    private function getCell(string $color, string $type, int $pos): string
+    private function getCell(string $color, string $type, int $position): string
     {
         switch ($type) {
             case 'J':
@@ -190,7 +190,7 @@ class Board
                 break;
         }
 
-        return sprintf('|% 2d|%s|%s|', $pos, $type, $cell);
+        return sprintf('|% 2d|%s|%s|', $position, $type, $cell);
     }
 
     public function stations(): int
@@ -225,6 +225,25 @@ class Board
         }
 
         return $board;
+    }
+}
+
+class Piece
+{
+    private $position = 0;
+
+    public function __construct()
+    {
+    }
+
+    public function position(): int
+    {
+        return $this->position;
+    }
+
+    public function move(int $position): void
+    {
+        $this->position += $position;
     }
 }
 
@@ -278,6 +297,15 @@ switch ($argv[1] ?? null) {
         break;
     case 'b':
         echo (new Board($argv[2] ?? 4))->get();
+        break;
+    case 'i':
+        $piece = new Piece();
+        echo $piece->position() .  PHP_EOL;
+        $piece->move(5) .  PHP_EOL;
+        echo $piece->position() .  PHP_EOL;
+        $piece->move(2) .  PHP_EOL;
+        echo $piece->position() .  PHP_EOL;
+        break;
     default:
         break;
 }
