@@ -434,19 +434,15 @@ class Player
             throw new RuntimeException("Piece [{$number}] not exist", __LINE__);
         }
 
-        $piece = $this->pieces[$number];
-
-        if ($piece->isInJail()) {
+        if ($this->pieces[$number]->isInJail()) {
             throw new RuntimeException("Piece [{$number}] is in jail", __LINE__);
         }
 
-        if ($piece->isInactive()) {
+        if ($this->pieces[$number]->isInactive()) {
             throw new RuntimeException("Piece [{$number}] is out", __LINE__);
         }
 
-        $piece->setPosition($color, $position);
-
-        $this->pieces[$number] = $piece;
+        $this->pieces[$number]->setPosition($color, $position);
     }
 }
 
