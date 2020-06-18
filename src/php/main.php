@@ -1,5 +1,9 @@
 <?php
 
+define('PIECE_STATUS_JAIL', 'J');
+define('PIECE_STATUS_ACTIVE', 'A');
+define('PIECE_STATUS_INACTIVE', 'I');
+
 class Dice
 {
     const NUMBERS = [
@@ -136,17 +140,21 @@ class Turn
 
 class Board
 {
-    private $stations;
+    private $colors;
+    private $pieces = [];
 
-    public function __construct(int $stations)
+    public function __construct(int $colors)
     {
-        $this->stations = $stations;
+        $this->colors = $colors;
     }
 
     private function getCells(string $color): array
     {
-        return array_reduce(range(-5, 20), function($cells, $key): array {
+        return array_reduce(range(-6, 20), function($cells, $key): array {
             switch ($key) {
+                case -6:
+                    $value = 'J'; // Jail
+                    break;
                 case 0:
                     $value = 'H'; // Home
                     break;
@@ -173,7 +181,7 @@ class Board
     {
         switch ($type) {
             case 'J':
-                $cell = '0 0  0 0';
+                $cell = sprintf('% 8s', implode('', $this->getPiecesInJail($color)));
                 break;
             case 'H':
                 $cell = '--HOME--';
@@ -190,12 +198,18 @@ class Board
                 break;
         }
 
+        $pieces = $this->getPiecesInCell($color, $position);
+
+        if (!empty($pieces)) {
+            $cell = sprintf('% 8s', implode('', $pieces));
+        }
+
         return sprintf('|% 2d|%s|%s|', $position, $type, $cell);
     }
 
-    public function stations(): int
+    public function colors(): int
     {
-        return $this->stations;
+        return $this->colors;
     }
 
     public function get(): string
@@ -204,7 +218,7 @@ class Board
         $station = [];
         $stations = [];
 
-        for ($i = 0; $i < $this->stations; $i++) {
+        for ($i = 0; $i < $this->colors; $i++) {
             $color = chr($i + 65);
 
             $stations[$color] = $this->getCells($color);
@@ -216,7 +230,7 @@ class Board
             }
         }
 
-        for ($j = -5; $j <= 20 ; $j++) {
+        for ($j = -6; $j <= 20 ; $j++) {
             foreach ($station as $color => $cell) {
                 $board .= str_repeat(' ', 5) . $cell[$j];
             }
@@ -226,6 +240,66 @@ class Board
 
         return $board;
     }
+
+    public function setPieces(array $pieces)
+    {
+        array_map(function($piece){
+            if (!$piece instanceof Piece) {
+                throw new RuntimeException(__FUNCTION__ . ': Only accept Piece in array', 1);
+            }
+
+            $this->setPiece($piece);
+        }, $pieces);
+    }
+
+    public function setPiece(Piece $piece)
+    {
+        $this->pieces[$piece->color()][$piece->number()] = $piece;
+    }
+
+    private function getPiecesInJail(string $color)
+    {
+        $inJail = [];
+
+        if (empty($this->pieces[$color])) {
+            return $inJail;
+        }
+
+        foreach ($this->pieces[$color] as $piece) {
+            if ($piece->isInJail()) {
+                $inJail[] = $piece->name();
+            }
+        }
+
+        return $inJail;
+    }
+
+    private function getPiecesInCell(string $color, int $position)
+    {
+        $inCell = [];
+
+        for ($i = 0; $i < $this->colors; $i++) {
+            $_color = chr($i + 65);
+
+            if (empty($this->pieces[$_color])) {
+                continue;
+            }
+
+            foreach ($this->pieces[$_color] as $piece) {
+                if ($piece->isActive()) {
+                    continue;
+                }
+
+                list($currentColor, $currentPosition) = $piece->position();
+
+                if ($currentColor === $color && $currentPosition === $position) {
+                    $inCell[] = $piece->name();
+                }
+            }
+        }
+
+        return $inCell;
+    }
 }
 
 class Piece
@@ -233,13 +307,15 @@ class Piece
     private $name;
     private $color;
     private $number;
-    private $position = 0;
+    private $position = [];
+    private $status = PIECE_STATUS_JAIL;
 
     public function __construct(string $color, int $number)
     {
         $this->color = $color;
         $this->number = $number;
-        $this->name = sprintf('%s%02d', $color, $number);
+        $this->name = sprintf('%s%d', $color, $number);
+        $this->position = [$this->color(), 0];
     }
 
     public function name(): string
@@ -257,14 +333,50 @@ class Piece
         return $this->number;
     }
 
-    public function position(): int
+    public function setPosition(string $color, int $cell): void
+    {
+        list($currentColor, $currentCell) = $this->position();
+
+        if ($color !== $this->color() && ord($color) < ord($currentColor)) {
+            throw new RuntimeException('Another lap?', __LINE__);
+        }
+
+        if (!in_array($cell, range(-5, 20))) {
+            throw new RuntimeException("Cell [{$color}:{$cell}] is not allowed, try using value between -5 and 20", __LINE__);
+        }
+
+        if ($color === $this->color() && $cell === 20) {
+            $this->status = PIECE_STATUS_INACTIVE;
+        } else {
+            $this->status = PIECE_STATUS_ACTIVE;
+        }
+
+        $this->position = [$color, $cell];
+    }
+
+    public function position(): array
     {
         return $this->position;
     }
 
-    public function move(int $position): void
+    public function activate(): void
     {
-        $this->position += $position;
+        $this->status = PIECE_STATUS_ACTIVE;
+    }
+
+    public function isInJail(): bool
+    {
+        return $this->status === PIECE_STATUS_JAIL;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === PIECE_STATUS_ACTIVE;
+    }
+
+    public function isInactive(): bool
+    {
+        return $this->status === PIECE_STATUS_INACTIVE;
     }
 }
 
@@ -305,6 +417,36 @@ class Player
     public function pieces(): array
     {
         return $this->pieces;
+    }
+
+    public function activatePiece(int $number): void
+    {
+        if (empty($this->pieces[$number])) {
+            throw new RuntimeException("Piece [{$number}] not exist", __LINE__);
+        }
+
+        $this->pieces[$number]->activate();
+    }
+
+    public function movePiece(int $number, string $color, int $position): void
+    {
+        if (empty($this->pieces[$number])) {
+            throw new RuntimeException("Piece [{$number}] not exist", __LINE__);
+        }
+
+        $piece = $this->pieces[$number];
+
+        if ($piece->isInJail()) {
+            throw new RuntimeException("Piece [{$number}] is in jail", __LINE__);
+        }
+
+        if ($piece->isInactive()) {
+            throw new RuntimeException("Piece [{$number}] is out", __LINE__);
+        }
+
+        $piece->setPosition($color, $position);
+
+        $this->pieces[$number] = $piece;
     }
 }
 
@@ -357,21 +499,40 @@ switch ($argv[1] ?? null) {
         echo (new Turn())->get();
         break;
     case 'b':
-        echo (new Board($argv[2] ?? 4))->get();
+        $board = new Board($argv[2] ?? 4);
+        echo $board->get() . PHP_EOL;
+        $board->setPiece(new Piece('A', 1));
+        echo $board->get() . PHP_EOL;
+        $board->setPiece(new Piece('A', 1));
+        echo $board->get() . PHP_EOL;
+        $board->setPieces([new Piece('A', 1), new Piece('A', 2), new Piece('C', 1)]);
+        echo $board->get() . PHP_EOL;
+        $piece = new Piece('A', 3);
+        $piece->setPosition('B', -4);
+        $board->setPiece($piece);
+        echo $board->get() . PHP_EOL;
+        $piece->setPosition('D', 20);
+        $board->setPiece($piece);
+        echo $board->get() . PHP_EOL;
         break;
     case 'i':
         $piece = new Piece('A', 1);
         echo $piece->name() .  PHP_EOL;
-        echo $piece->position() .  PHP_EOL;
-        $piece->move(5) .  PHP_EOL;
-        echo $piece->position() .  PHP_EOL;
-        $piece->move(2) .  PHP_EOL;
-        echo $piece->position() .  PHP_EOL;
+        var_dump($piece->position()) .  PHP_EOL;
+        $piece->setPosition('A', 5) .  PHP_EOL;
+        var_dump($piece->position()) .  PHP_EOL;
+        $piece->setPosition('A', 7) .  PHP_EOL;
+        var_dump($piece->position()) .  PHP_EOL;
+        $piece->setPosition('B', -4) .  PHP_EOL;
+        var_dump($piece->position()) .  PHP_EOL;
         break;
     case 'l':
         $player = new Player('Freddie', 'A');
         echo $player->name() . PHP_EOL;
         echo $player->color() . PHP_EOL;
+        var_dump($player->pieces()) . PHP_EOL;
+        $player->activatePiece(1);
+        $player->movePiece(1, 'A', 3);
         var_dump($player->pieces()) . PHP_EOL;
         break;
     default:
