@@ -315,7 +315,7 @@ class Piece
         $this->color = $color;
         $this->number = $number;
         $this->name = sprintf('%s%d', $color, $number);
-        $this->position = [$this->color(), 0];
+        $this->position = [$this->color(), -6];
     }
 
     public function name(): string
@@ -325,7 +325,7 @@ class Piece
 
     public function color(): string
     {
-        return $this->color;
+           return $this->color;
     }
 
     public function number(): int
@@ -362,6 +362,8 @@ class Piece
     public function activate(): void
     {
         $this->status = PIECE_STATUS_ACTIVE;
+
+        $this->setPosition($this->color, 0);
     }
 
     public function isInJail(): bool
@@ -419,6 +421,11 @@ class Player
         return $this->pieces;
     }
 
+    public function throwing(): Throwing
+    {
+        return new Throwing();
+    }
+
     public function activatePiece(int $number): void
     {
         if (empty($this->pieces[$number])) {
@@ -443,6 +450,92 @@ class Player
         }
 
         $this->pieces[$number]->setPosition($color, $position);
+    }
+
+    public function piecesInJail(): array
+    {
+        $piecesInJail = [];
+
+        foreach ($this->pieces as $number => $piece) {
+            if ($piece->isInJail()) {
+                $piecesInJail[] = $number;
+            }
+        }
+
+        return $piecesInJail;
+    }
+}
+
+class Game
+{
+    private $board;
+    private $players;
+    private $rounds = 0;
+
+    public function __construct(Board $board, array $players)
+    {
+        $this->board = $board;
+        $this->players = $players;
+    }
+
+    public function start()
+    {
+        $winner = null;
+
+        echo $this->board->get();
+
+        readline();
+
+        do {
+            foreach ($this->players as $player) {
+                $throwing = $player->throwing();
+
+                echo $throwing->print();
+
+                list($d1, $d2) = $throwing->dices();
+
+                if (count($player->piecesInJail()) && $d1->number() === $d2->number()) {
+                    $activate = 2;
+
+                    if (in_array($d1->number(), [1, 6])) {
+                        $activate = count($player->piecesInJail());
+                    }
+
+                    foreach ($player->piecesInJail() as $number) {
+                        if ($activate > 0) {
+                            $player->activatePiece($number);
+                            $activate--;
+                        }
+                    }
+
+                    var_dump($player->pieces());
+                }
+
+                $this->board->setPieces($player->pieces());
+
+                echo $this->board->get();
+
+                readline();
+            }
+
+
+            $this->rounds++;
+        } while (!$winner && $this->rounds <= 5);
+    }
+
+    public function rounds(): int
+    {
+        return $this->rounds;
+    }
+
+    public function board(): Board
+    {
+        return $this->board;
+    }
+
+    public function players(): array
+    {
+        return $this->players;
     }
 }
 
@@ -531,6 +624,9 @@ switch ($argv[1] ?? null) {
         $player->movePiece(1, 'A', 3);
         var_dump($player->pieces()) . PHP_EOL;
         break;
+    case 'g':
+        $game = new Game(new Board(4), [new Player('F', 'A')]);
+        $game->start();
     default:
         break;
 }
